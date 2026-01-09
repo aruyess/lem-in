@@ -14,16 +14,7 @@ func Simulate(ants int, paths []Path, start, end string) ([]string, error) {
 	}
 
 	assigned := assignAnts(ants, paths)
-
-	// Give each path a contiguous block of ant IDs (matches typical lem-in expected output).
-	nextID := make([]int, len(paths))
-	remain := make([]int, len(paths))
-	cur := 1
-	for i := range paths {
-		nextID[i] = cur
-		remain[i] = assigned[i]
-		cur += assigned[i]
-	}
+	nextIndex := make([]int, len(paths))
 
 	occupied := make(map[string]int) // room -> antID, excludes start/end
 	finished := 0
@@ -34,40 +25,40 @@ func Simulate(ants int, paths []Path, start, end string) ([]string, error) {
 		moves := make([]move, 0, ants)
 
 		// Move existing ants forward.
-for _, p := range paths {
-	if len(p.Rooms) < 2 {
-		continue
-	}
-	for j := len(p.Rooms) - 2; j >= 1; j-- {
-		room := p.Rooms[j]
-		antID, ok := occupied[room]
-		if !ok {
-			continue
-		}
-		next := p.Rooms[j+1]
-		if next != end {
-			if _, busy := occupied[next]; busy {
-				continue
-			}
-		}
-
-		delete(occupied, room)
-		if next != end {
-			occupied[next] = antID
-		} else {
-			finished++
-		}
-
-		moves = append(moves, move{ant: antID, room: next})
-	}
-}
-
-		// Launch new ants (use per-path ant ID blocks, not global).
-		for pi, p := range paths {
-			if remain[pi] <= 0 {
-				continue
-			}
+		for _, p := range paths {
 			if len(p.Rooms) < 2 {
+						continue
+					}
+			for j := len(p.Rooms) - 2; j >= 1; j-- {
+				room := p.Rooms[j]
+				antID, ok := occupied[room]
+				if !ok {
+					continue
+				}
+				next := p.Rooms[j+1]
+				if next != end {
+					if _, busy := occupied[next]; busy {
+						continue
+					}
+				}
+
+				delete(occupied, room)
+				if next != end {
+					occupied[next] = antID
+				} else {
+					finished++
+				}
+
+				moves = append(moves, move{ant: antID, room: next})
+			}
+		}
+
+		// Launch new ants using assigned per-path queues.
+		for pi, p := range paths {
+			if len(p.Rooms) < 2 {
+				continue
+			}
+			if nextIndex[pi] >= len(assigned[pi]) {
 				continue
 			}
 
@@ -78,9 +69,8 @@ for _, p := range paths {
 				}
 			}
 
-			antID := nextID[pi]
-			nextID[pi]++
-			remain[pi]--
+			antID := assigned[pi][nextIndex[pi]]
+			nextIndex[pi]++
 
 			if first != end {
 				occupied[first] = antID
@@ -115,9 +105,10 @@ type move struct {
 	room string
 }
 
-func assignAnts(n int, paths []Path) []int {
+func assignAnts(n int, paths []Path) [][]int {
+	assigned := make([][]int, len(paths))
 	load := make([]int, len(paths))
-	for a := 0; a < n; a++ {
+	for antID := 1; antID <= n; antID++ {
 		best := 0
 		bestScore := paths[0].Edges() + load[0]
 		for i := 1; i < len(paths); i++ {
@@ -127,7 +118,8 @@ func assignAnts(n int, paths []Path) []int {
 				best = i
 			}
 		}
+		assigned[best] = append(assigned[best], antID)
 		load[best]++
 	}
-	return load
+	return assigned
 }
