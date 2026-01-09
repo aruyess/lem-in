@@ -41,6 +41,7 @@ func layeredDirectedAdj(g *graph.Graph, levels map[string]int) map[string][]stri
 	}
 	return out
 }
+
 var ErrNoPath = errors.New("no path")
 
 // Path is a start->end route in terms of original room names (includes start and end).
@@ -70,50 +71,16 @@ func FindBestPaths(in parser.Input) ([]Path, error) {
 		g.AddUndirectedEdge(e[0], e[1])
 	}
 
-	// 2) Find disjoint paths on FULL graph (do not restrict to shortest only).
-	paths := maxVertexDisjointPaths(g, in.Start, in.End, in.Ants)
+	// 2) Greedily collect shortest vertex-disjoint paths.
+	paths := shortestDisjointPaths(g, in.Start, in.End, in.Ants)
 	if len(paths) == 0 {
 		return nil, ErrNoPath
 	}
 
-	// 3) Deterministic ordering (your existing logic).
-	startOrder := make(map[string]int)
-	order := 0
-	for _, e := range in.Links {
-		a, b := e[0], e[1]
-		if a == in.Start {
-			if _, ok := startOrder[b]; !ok {
-				startOrder[b] = order
-				order++
-			}
-			continue
-		}
-		if b == in.Start {
-			if _, ok := startOrder[a]; !ok {
-				startOrder[a] = order
-				order++
-			}
-		}
-	}
-
+	// 3) Deterministic ordering.
 	sort.Slice(paths, func(i, j int) bool {
 		if paths[i].Edges() != paths[j].Edges() {
 			return paths[i].Edges() < paths[j].Edges()
-		}
-		ni, nj := "", ""
-		if len(paths[i].Rooms) > 1 {
-			ni = paths[i].Rooms[1]
-		}
-		if len(paths[j].Rooms) > 1 {
-			nj = paths[j].Rooms[1]
-		}
-		oi, iok := startOrder[ni]
-		oj, jok := startOrder[nj]
-		if iok && jok && oi != oj {
-			return oi < oj
-		}
-		if iok != jok {
-			return iok
 		}
 		ri := paths[i].Rooms
 		rj := paths[j].Rooms
@@ -136,6 +103,70 @@ func FindBestPaths(in parser.Input) ([]Path, error) {
 		}
 	}
 	return paths[:bestK], nil
+}
+
+func shortestDisjointPaths(g *graph.Graph, start, end string, maxPaths int) []Path {
+	paths := make([]Path, 0, maxPaths)
+	blocked := make(map[string]bool, len(g.Adj))
+
+	for len(paths) < maxPaths {
+		path, ok := shortestPath(g, start, end, blocked)
+		if !ok {
+			break
+		}
+		paths = append(paths, path)
+		for i := 1; i < len(path.Rooms)-1; i++ {
+			blocked[path.Rooms[i]] = true
+		}
+	}
+
+	return paths
+}
+
+func shortestPath(g *graph.Graph, start, end string, blocked map[string]bool) (Path, bool) {
+	if start == end {
+		return Path{Rooms: []string{start}}, true
+	}
+
+	prev := map[string]string{start: ""}
+	queue := []string{start}
+
+	for head := 0; head < len(queue); head++ {
+		cur := queue[head]
+		neighbors := g.Neighbors(cur)
+		sort.Strings(neighbors)
+		for _, next := range neighbors {
+			if blocked[next] && next != end {
+				continue
+			}
+			if _, seen := prev[next]; seen {
+				continue
+			}
+			prev[next] = cur
+			if next == end {
+				head = len(queue)
+				break
+			}
+			queue = append(queue, next)
+		}
+	}
+
+	if _, ok := prev[end]; !ok {
+		return Path{}, false
+	}
+
+	rooms := []string{}
+	for cur := end; cur != ""; cur = prev[cur] {
+		rooms = append(rooms, cur)
+	}
+	for i, j := 0, len(rooms)-1; i < j; i, j = i+1, j-1 {
+		rooms[i], rooms[j] = rooms[j], rooms[i]
+	}
+
+	if len(rooms) < 2 {
+		return Path{}, false
+	}
+	return Path{Rooms: rooms}, true
 }
 
 // makespan estimates number of turns required to move all ants using the given paths,
@@ -214,20 +245,20 @@ func maxVertexDisjointPaths(g *graph.Graph, start, end string, maxPaths int) []P
 	}
 
 	// Add tunnel edges (directed both ways) in deterministic order.
-for _, a := range rooms {
-	nb := g.Adj[a]
-	neighbors := make([]string, 0, len(nb))
-	for b := range nb {
-		neighbors = append(neighbors, b)
-	}
-	sort.Strings(neighbors)
+	for _, a := range rooms {
+		nb := g.Adj[a]
+		neighbors := make([]string, 0, len(nb))
+		for b := range nb {
+			neighbors = append(neighbors, b)
+		}
+		sort.Strings(neighbors)
 
-	ia := idx[a]
-	for _, b := range neighbors {
-		ib := idx[b]
-		f.AddEdge(nodes[ia].out, nodes[ib].in, 1)
+		ia := idx[a]
+		for _, b := range neighbors {
+			ib := idx[b]
+			f.AddEdge(nodes[ia].out, nodes[ib].in, 1)
+		}
 	}
-}
 
 	// Source is start_out; sink is end_in.
 	s := nodes[si].out
