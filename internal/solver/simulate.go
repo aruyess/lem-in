@@ -108,6 +108,23 @@ type move struct {
 func assignAnts(n int, paths []Path) [][]int {
 	assigned := make([][]int, len(paths))
 	load := make([]int, len(paths))
+	allEqual := true
+	baseEdges := paths[0].Edges()
+	for i := 1; i < len(paths); i++ {
+		if paths[i].Edges() != baseEdges {
+			allEqual = false
+			break
+		}
+	}
+
+	if allEqual {
+		for antID := 1; antID <= n; antID++ {
+			idx := (antID - 1) % len(paths)
+			assigned[idx] = append(assigned[idx], antID)
+		}
+		return assigned
+	}
+
 	lastTieIndex := -1
 	for antID := 1; antID <= n; antID++ {
 		bestScore := paths[0].Edges() + load[0]
