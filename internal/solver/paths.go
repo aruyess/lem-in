@@ -71,16 +71,26 @@ func FindBestPaths(in parser.Input) ([]Path, error) {
 		g.AddUndirectedEdge(e[0], e[1])
 	}
 
-	// 2) Greedily collect shortest vertex-disjoint paths.
-	paths := shortestDisjointPaths(g, in.Start, in.End, in.Ants)
+	// 2) Collect a maximal set of vertex-disjoint paths using flow.
+	paths := maxVertexDisjointPaths(g, in.Start, in.End, in.Ants)
 	if len(paths) == 0 {
 		return nil, ErrNoPath
+	}
+
+	linkOrder := make(map[string]int, len(in.Links))
+	for i, e := range in.Links {
+		linkOrder[edgeKey(e[0], e[1])] = i
 	}
 
 	// 3) Deterministic ordering.
 	sort.Slice(paths, func(i, j int) bool {
 		if paths[i].Edges() != paths[j].Edges() {
 			return paths[i].Edges() < paths[j].Edges()
+		}
+				oi := startEdgeOrder(paths[i], in.Start, linkOrder)
+		oj := startEdgeOrder(paths[j], in.Start, linkOrder)
+		if oi != oj {
+			return oi < oj
 		}
 		ri := paths[i].Rooms
 		rj := paths[j].Rooms
@@ -103,6 +113,24 @@ func FindBestPaths(in parser.Input) ([]Path, error) {
 		}
 	}
 	return paths[:bestK], nil
+}
+
+func edgeKey(a, b string) string {
+	if a < b {
+		return a + "-" + b
+	}
+	return b + "-" + a
+}
+
+func startEdgeOrder(p Path, start string, order map[string]int) int {
+	const inf = int(^uint(0) >> 1)
+	if len(p.Rooms) < 2 || p.Rooms[0] != start {
+		return inf
+	}
+	if idx, ok := order[edgeKey(p.Rooms[0], p.Rooms[1])]; ok {
+		return idx
+	}
+	return inf
 }
 
 func shortestDisjointPaths(g *graph.Graph, start, end string, maxPaths int) []Path {
@@ -156,7 +184,7 @@ func shortestPath(g *graph.Graph, start, end string, blocked map[string]bool, bl
 		neighbors := g.Neighbors(cur)
 		sort.Strings(neighbors)
 		for _, next := range neighbors {
-						if edgeBlocked(blockedEdges, cur, next) {
+			if edgeBlocked(blockedEdges, cur, next) {
 				continue
 			}
 			if blocked[next] && next != end {
