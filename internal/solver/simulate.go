@@ -27,8 +27,8 @@ func Simulate(ants int, paths []Path, start, end string) ([]string, error) {
 		// Move existing ants forward.
 		for _, p := range paths {
 			if len(p.Rooms) < 2 {
-				continue
-			}
+						continue
+					}
 			for j := len(p.Rooms) - 2; j >= 1; j-- {
 				room := p.Rooms[j]
 				antID, ok := occupied[room]
