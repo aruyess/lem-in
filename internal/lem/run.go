@@ -30,22 +30,11 @@ func RunFile(path string) (string, error) {
 	}
 
 	var out bytes.Buffer
-	out.Write(raw)
-
-	// Ensure the map ends with a single newline before the blank line.
-	if len(raw) == 0 || raw[len(raw)-1] != '\n' {
-		out.WriteByte('\n')
-	}
-	out.WriteByte('\n')
-
 	for i, line := range moves {
-		out.WriteString(line)
-		if i != len(moves)-1 {
+		if i > 0 {
 			out.WriteByte('\n')
 		}
-	}
-	if len(moves) > 0 {
-		out.WriteByte('\n')
+		out.WriteString(line)
 	}
 
 	return out.String(), nil
