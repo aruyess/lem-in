@@ -108,22 +108,42 @@ func FindBestPaths(in parser.Input) ([]Path, error) {
 func shortestDisjointPaths(g *graph.Graph, start, end string, maxPaths int) []Path {
 	paths := make([]Path, 0, maxPaths)
 	blocked := make(map[string]bool, len(g.Adj))
+	blockedEdges := make(map[string]map[string]bool)
 
 	for len(paths) < maxPaths {
-		path, ok := shortestPath(g, start, end, blocked)
+		path, ok := shortestPath(g, start, end, blocked, blockedEdges)
 		if !ok {
 			break
 		}
 		paths = append(paths, path)
-		for i := 1; i < len(path.Rooms)-1; i++ {
-			blocked[path.Rooms[i]] = true
+		if len(path.Rooms) == 2 {
+			blockEdge(blockedEdges, path.Rooms[0], path.Rooms[1])
+		} else {
+			for i := 1; i < len(path.Rooms)-1; i++ {
+				blocked[path.Rooms[i]] = true
+			}
 		}
 	}
 
 	return paths
 }
 
-func shortestPath(g *graph.Graph, start, end string, blocked map[string]bool) (Path, bool) {
+func blockEdge(blockedEdges map[string]map[string]bool, from, to string) {
+	if blockedEdges[from] == nil {
+		blockedEdges[from] = make(map[string]bool)
+	}
+	blockedEdges[from][to] = true
+	if blockedEdges[to] == nil {
+		blockedEdges[to] = make(map[string]bool)
+	}
+	blockedEdges[to][from] = true
+}
+
+func edgeBlocked(blockedEdges map[string]map[string]bool, from, to string) bool {
+	return blockedEdges[from] != nil && blockedEdges[from][to]
+}
+
+func shortestPath(g *graph.Graph, start, end string, blocked map[string]bool, blockedEdges map[string]map[string]bool) (Path, bool) {
 	if start == end {
 		return Path{Rooms: []string{start}}, true
 	}
@@ -136,6 +156,9 @@ func shortestPath(g *graph.Graph, start, end string, blocked map[string]bool) (P
 		neighbors := g.Neighbors(cur)
 		sort.Strings(neighbors)
 		for _, next := range neighbors {
+						if edgeBlocked(blockedEdges, cur, next) {
+				continue
+			}
 			if blocked[next] && next != end {
 				continue
 			}
