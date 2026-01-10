@@ -71,39 +71,14 @@ func FindBestPaths(in parser.Input) ([]Path, error) {
 		g.AddUndirectedEdge(e[0], e[1])
 	}
 
-	// 2) Collect maximum vertex-disjoint paths to avoid greedy dead-ends.
-	paths := maxVertexDisjointPaths(g, in.Start, in.End, in.Ants)
+	// 2) Greedily collect shortest vertex-disjoint paths.
+	paths := shortestDisjointPaths(g, in.Start, in.End, in.Ants)
 	if len(paths) == 0 {
 		return nil, ErrNoPath
 	}
 
-	startOrder := make(map[string]int, len(in.Links))
-	for i, e := range in.Links {
-		if e[0] == in.Start {
-			if _, ok := startOrder[e[1]]; !ok {
-				startOrder[e[1]] = i
-			}
-			continue
-		}
-		if e[1] == in.Start {
-			if _, ok := startOrder[e[0]]; !ok {
-				startOrder[e[0]] = i
-			}
-		}
-	}
-
 	// 3) Deterministic ordering.
 	sort.Slice(paths, func(i, j int) bool {
-		if len(paths[i].Rooms) > 1 && len(paths[j].Rooms) > 1 {
-			oi, okI := startOrder[paths[i].Rooms[1]]
-			oj, okJ := startOrder[paths[j].Rooms[1]]
-			if okI && okJ && oi != oj {
-				return oi < oj
-			}
-			if okI != okJ {
-				return okI
-			}
-		}
 		if paths[i].Edges() != paths[j].Edges() {
 			return paths[i].Edges() < paths[j].Edges()
 		}
