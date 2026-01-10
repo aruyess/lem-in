@@ -13,8 +13,8 @@ func Simulate(ants int, paths []Path, start, end string) ([]string, error) {
 		return nil, ErrStuck
 	}
 
-	assigned := assignAnts(ants, paths)
-	nextIndex := make([]int, len(paths))
+	assigned := assignAntCounts(ants, paths)
+	nextAntID := 1
 
 	occupied := make(map[string]int) // room -> antID, excludes start/end
 	finished := 0
@@ -27,8 +27,8 @@ func Simulate(ants int, paths []Path, start, end string) ([]string, error) {
 		// Move existing ants forward.
 		for _, p := range paths {
 			if len(p.Rooms) < 2 {
-						continue
-					}
+				continue
+			}
 			for j := len(p.Rooms) - 2; j >= 1; j-- {
 				room := p.Rooms[j]
 				antID, ok := occupied[room]
@@ -53,12 +53,12 @@ func Simulate(ants int, paths []Path, start, end string) ([]string, error) {
 			}
 		}
 
-		// Launch new ants using assigned per-path queues.
+		// Launch new ants using assigned per-path counts.
 		for pi, p := range paths {
 			if len(p.Rooms) < 2 {
 				continue
 			}
-			if nextIndex[pi] >= len(assigned[pi]) {
+			if assigned[pi] == 0 {
 				continue
 			}
 
@@ -69,8 +69,9 @@ func Simulate(ants int, paths []Path, start, end string) ([]string, error) {
 				}
 			}
 
-			antID := assigned[pi][nextIndex[pi]]
-			nextIndex[pi]++
+			antID := nextAntID
+			nextAntID++
+			assigned[pi]--
 
 			if first != end {
 				occupied[first] = antID
@@ -105,8 +106,8 @@ type move struct {
 	room string
 }
 
-func assignAnts(n int, paths []Path) [][]int {
-	assigned := make([][]int, len(paths))
+func assignAntCounts(n int, paths []Path) []int {
+	assigned := make([]int, len(paths))
 	load := make([]int, len(paths))
 	for antID := 1; antID <= n; antID++ {
 		best := 0
@@ -118,7 +119,7 @@ func assignAnts(n int, paths []Path) [][]int {
 				best = i
 			}
 		}
-		assigned[best] = append(assigned[best], antID)
+		assigned[best]++
 		load[best]++
 	}
 	return assigned
